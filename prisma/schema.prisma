@@ -1,0 +1,160 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Place {
+  id         String   @id @default(uuid())
+  key        String   @unique
+  labelEs    String
+  labelEn    String
+  zone       String?
+  isAirport  Boolean  @default(false)
+  isPopular  Boolean  @default(false)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  ratesAsOrigin      Rate[] @relation("RateOrigin")
+  ratesAsDestination Rate[] @relation("RateDestination")
+
+  bookingsAsOrigin      Booking[] @relation("BookingOrigin")
+  bookingsAsDestination Booking[] @relation("BookingDestination")
+
+  @@map("places")
+}
+
+model Vehicle {
+  id                 String   @id @default(uuid())
+  name               String   @unique
+  capacityPassengers Int
+  capacityLuggage    Int
+  description        String?
+  imageUrl           String?
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  rates    Rate[]
+  bookings Booking[]
+
+  @@map("vehicles")
+}
+
+model Rate {
+  id            String   @id @default(uuid())
+  originId      String
+  destinationId String
+  vehicleId     String
+  season        String?
+  currency      String   @default("USD")
+  priceNormal   Decimal  @db.Decimal(10, 2)
+  pricePromo    Decimal? @db.Decimal(10, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  origin      Place   @relation("RateOrigin", fields: [originId], references: [id])
+  destination Place   @relation("RateDestination", fields: [destinationId], references: [id])
+  vehicle     Vehicle @relation(fields: [vehicleId], references: [id])
+
+  @@unique([originId, destinationId, vehicleId, season])
+  @@map("rates")
+}
+
+enum TripType {
+  round
+  oneway
+}
+
+enum ContactPref {
+  whatsapp
+  email
+}
+
+enum PayMethod {
+  card
+  paypal
+}
+
+enum PaymentStatus {
+  pending
+  succeeded
+  failed
+  refunded
+}
+
+enum BookingStatus {
+  nueva
+  pendiente_pago
+  confirmada
+  proxima
+  en_curso
+  finalizada
+  cancelada
+}
+
+model Booking {
+  id     String @id @default(uuid())
+  folio  String @unique
+
+  tripType      TripType
+  originId      String
+  destinationId String
+  arrivalDate   DateTime @db.Date
+  departureDate DateTime? @db.Date
+
+  adults   Int
+  children Int @default(0)
+
+  vehicleId  String
+  priceTotal Decimal @db.Decimal(10, 2)
+  currency   String
+
+  firstName   String
+  lastName    String
+  email       String
+  phone       String
+  contactPref ContactPref
+
+  arrivalAirline    String?
+  arrivalFlightNo   String?
+  arrivalTime       String?
+  departureAirline  String?
+  departureFlightNo String?
+  departureTime     String?
+  comments          String?
+
+  payMethod     PayMethod
+  paymentStatus PaymentStatus @default(pending)
+  status        BookingStatus @default(nueva)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  origin      Place   @relation("BookingOrigin", fields: [originId], references: [id])
+  destination Place   @relation("BookingDestination", fields: [destinationId], references: [id])
+  vehicle     Vehicle @relation(fields: [vehicleId], references: [id])
+
+  @@map("bookings")
+}
