@@ -8,7 +8,10 @@ import { AppModule } from './app.module';
 import { AppConfig } from './config/config.type';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
+    rawBody: true,
+  });
 
   const configService = app.get(ConfigService<AppConfig, true>);
   const apiPrefix = configService.get('app.apiPrefix', { infer: true });

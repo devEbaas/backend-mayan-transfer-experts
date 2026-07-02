@@ -17,4 +17,8 @@ export interface AppConfig {
   log: {
     level: string;
   };
+  stripe: {
+    secretKey: string;
+    webhookSecret: string;
+  };
 }

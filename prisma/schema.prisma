@@ -155,6 +155,30 @@ model Booking {
   origin      Place   @relation("BookingOrigin", fields: [originId], references: [id])
   destination Place   @relation("BookingDestination", fields: [destinationId], references: [id])
   vehicle     Vehicle @relation(fields: [vehicleId], references: [id])
+  payments    Payment[]
 
   @@map("bookings")
+}
+
+enum PaymentProvider {
+  stripe
+  paypal
+}
+
+model Payment {
+  id          String          @id @default(uuid())
+  bookingId   String
+  provider    PaymentProvider
+  providerRef String
+  amount      Decimal         @db.Decimal(10, 2)
+  currency    String
+  status      PaymentStatus   @default(pending)
+  raw         Json?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  @@unique([provider, providerRef])
+  @@map("payments")
 }

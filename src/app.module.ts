@@ -13,6 +13,7 @@ import { LoggerModule } from './logger/logger.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BookingsModule } from './modules/bookings/bookings.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 import { UsersModule } from './modules/users/users.module';
 
 @Module({
@@ -30,6 +31,7 @@ import { UsersModule } from './modules/users/users.module';
     AuthModule,
     CatalogModule,
     BookingsModule,
+    PaymentsModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: HttpExceptionFilter },

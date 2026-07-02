@@ -4,6 +4,7 @@ import {
   BookingStatus,
   ContactPref,
   PayMethod,
+  PaymentStatus,
   Prisma,
   TripType,
 } from '@prisma/client';
@@ -91,5 +92,12 @@ export class BookingsRepository {
 
   updateStatus(id: string, status: BookingStatus): Promise<Booking> {
     return this.prisma.booking.update({ where: { id }, data: { status } });
+  }
+
+  updatePaymentOutcome(
+    id: string,
+    data: { status?: BookingStatus; paymentStatus: PaymentStatus },
+  ): Promise<Booking> {
+    return this.prisma.booking.update({ where: { id }, data });
   }
 }

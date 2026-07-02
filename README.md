@@ -15,7 +15,9 @@ src/
 ├── health/                   # Health checks (Terminus + Prisma)
 └── modules/
     ├── users/                 # Controller → Service → Repository
-    └── auth/                  # JWT + Passport (local + jwt strategies), guards de roles
+    ├── auth/                  # JWT + Passport (local + jwt strategies), guards de roles
+    ├── catalog/                # Destinos, vehículos y tarifas (GET /routes, GET /vehicles)
+    └── bookings/               # Reservas + máquina de estados (POST /bookings, GET /bookings/:id)
 ```
 
 Cada módulo de negocio sigue el patrón **Controller → Service → Repository**: el `Repository` es la única clase que importa `PrismaService`, lo que mantiene Prisma aislado detrás de una interfaz simple y hace que los `Service` sean fáciles de testear mockeando el repositorio.
@@ -76,6 +78,15 @@ Cada módulo de negocio sigue el patrón **Controller → Service → Repository
 
 Los endpoints de `users` (excepto `GET /users/:id`) requieren rol `ADMIN` (`@Roles(Role.ADMIN)`), y todos los endpoints de `users` requieren un `Authorization: Bearer <accessToken>` válido.
 
+## API pública (sitio web, sin login)
+
+- `GET /api/v1/routes` — destinos activos para los selectores de origen/destino.
+- `GET /api/v1/vehicles?originId=&destinationId=` — vehículos y precio para una ruta.
+- `POST /api/v1/bookings` — crea una reserva (snapshot de precio desde `Rate`, límite de 5 req/min por IP).
+- `GET /api/v1/bookings/:id` — resumen de una reserva por id.
+
+Detalle completo de campos y respuestas en Swagger (`/api/v1/docs`).
+
 ## Testing
 
 - Los tests unitarios están junto a cada servicio (`*.spec.ts`) y mockean el `Repository` correspondiente.
@@ -83,6 +94,6 @@ Los endpoints de `users` (excepto `GET /users/:id`) requieren rol `ADMIN` (`@Rol
 
 ## Roadmap de implementación
 
-Estado actual: **Fundación y Catálogos públicos** completos, **Auth/Users** adelantado. Pendiente: **Reservas, Pagos y Contacto** (el flujo core del wizard de reserva) y las tareas transversales de CI/tests.
+Estado actual: **Fundación, Catálogos públicos y Reservas (`Booking`)** completos, **Auth/Users** adelantado. Pendiente: **Pagos y Contacto** (para cerrar el flujo del wizard) y las tareas transversales de CI/tests.
 
 El tracking detallado por fase (checklist, decisiones y changelog de avance) vive en **[`docs/milestones.md`](./docs/milestones.md)** — se actualiza ahí a medida que se avanza, no en este README.

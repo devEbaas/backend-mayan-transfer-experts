@@ -17,4 +17,8 @@ export default () => ({
   log: {
     level: process.env.LOG_LEVEL ?? 'info',
   },
+  stripe: {
+    secretKey: process.env.STRIPE_SECRET_KEY,
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? '',
+  },
 });
