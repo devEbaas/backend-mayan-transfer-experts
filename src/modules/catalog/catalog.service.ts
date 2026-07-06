@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { GetVehiclesQueryDto } from './dto/get-vehicles-query.dto';
+import { ExtraEntity } from './entities/extra.entity';
 import { PlaceEntity } from './entities/place.entity';
 import { VehicleRateEntity } from './entities/vehicle-rate.entity';
 import { CatalogRepository } from './catalog.repository';
@@ -11,6 +12,22 @@ export class CatalogService {
   async getRoutes(): Promise<PlaceEntity[]> {
     const places = await this.catalogRepository.findActivePlaces();
     return places.map((place) => new PlaceEntity(place));
+  }
+
+  async getExtras(): Promise<ExtraEntity[]> {
+    const extras = await this.catalogRepository.findActiveExtras();
+    return extras.map(
+      (extra) =>
+        new ExtraEntity({
+          id: extra.id,
+          key: extra.key,
+          labelEs: extra.labelEs,
+          labelEn: extra.labelEn,
+          price: extra.price.toNumber(),
+          currency: extra.currency,
+          maxQty: extra.maxQty,
+        }),
+    );
   }
 
   async getVehiclesForRoute(

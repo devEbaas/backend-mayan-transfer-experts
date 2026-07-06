@@ -1,14 +1,14 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
-  Booking,
   BookingStatus,
   ContactPref,
   PayMethod,
   Prisma,
   TripType,
+  Vehicle,
 } from '@prisma/client';
-import { BookingsRepository } from './bookings.repository';
+import { BookingsRepository, BookingWithExtras } from './bookings.repository';
 import { BookingsService } from './bookings.service';
 
 describe('BookingsService', () => {
@@ -18,7 +18,19 @@ describe('BookingsService', () => {
   const findById = jest.fn();
   const updateStatus = jest.fn();
 
-  const booking: Booking = {
+  const van: Vehicle = {
+    id: 'vehicle-van',
+    name: 'Private Van',
+    capacityPassengers: 8,
+    capacityLuggage: 8,
+    description: null,
+    imageUrl: null,
+    active: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  const booking: BookingWithExtras = {
     id: 'booking-1',
     folio: 'CTH-7K2940',
     tripType: TripType.oneway,
@@ -48,6 +60,8 @@ describe('BookingsService', () => {
     status: BookingStatus.nueva,
     createdAt: new Date(),
     updatedAt: new Date(),
+    vehicle: van,
+    extras: [],
   };
 
   const baseDto = {
@@ -94,6 +108,17 @@ describe('BookingsService', () => {
       }),
     );
     expect(result).toMatchObject({ folio: 'CTH-7K2940', priceTotal: 89.6 });
+  });
+
+  it('passes requested extras through to the repository', async () => {
+    createWithPriceSnapshot.mockResolvedValue(booking);
+
+    const extras = [{ extraId: 'extra-beer', qty: 2 }];
+    await service.create({ ...baseDto, extras });
+
+    expect(createWithPriceSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({ extras }),
+    );
   });
 
   it('rejects a round trip without departureDate before touching the repository', async () => {

@@ -1,12 +1,36 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
-  Booking,
   BookingStatus,
   ContactPref,
   PayMethod,
   PaymentStatus,
   TripType,
 } from '@prisma/client';
+import type { BookingWithExtras } from '../bookings.repository';
+
+export class BookingExtraLineEntity {
+  @ApiProperty()
+  extraId: string;
+
+  @ApiProperty()
+  labelEs: string;
+
+  @ApiProperty()
+  labelEn: string;
+
+  @ApiProperty()
+  qty: number;
+
+  @ApiProperty()
+  unitPrice: number;
+
+  @ApiProperty()
+  currency: string;
+
+  constructor(partial: BookingExtraLineEntity) {
+    Object.assign(this, partial);
+  }
+}
 
 export class BookingEntity {
   @ApiProperty()
@@ -38,6 +62,9 @@ export class BookingEntity {
 
   @ApiProperty()
   vehicleId: string;
+
+  @ApiProperty()
+  vehicleName: string;
 
   @ApiProperty()
   priceTotal: number;
@@ -96,7 +123,10 @@ export class BookingEntity {
   @ApiProperty()
   updatedAt: Date;
 
-  constructor(booking: Booking) {
+  @ApiProperty({ type: BookingExtraLineEntity, isArray: true })
+  extras: BookingExtraLineEntity[];
+
+  constructor(booking: BookingWithExtras) {
     this.id = booking.id;
     this.folio = booking.folio;
     this.tripType = booking.tripType;
@@ -107,6 +137,7 @@ export class BookingEntity {
     this.adults = booking.adults;
     this.children = booking.children;
     this.vehicleId = booking.vehicleId;
+    this.vehicleName = booking.vehicle.name;
     this.priceTotal = booking.priceTotal.toNumber();
     this.currency = booking.currency;
     this.firstName = booking.firstName;
@@ -124,6 +155,17 @@ export class BookingEntity {
     this.payMethod = booking.payMethod;
     this.paymentStatus = booking.paymentStatus;
     this.status = booking.status;
+    this.extras = booking.extras.map(
+      (line) =>
+        new BookingExtraLineEntity({
+          extraId: line.extraId,
+          labelEs: line.extra.labelEs,
+          labelEn: line.extra.labelEn,
+          qty: line.qty,
+          unitPrice: line.unitPrice.toNumber(),
+          currency: line.currency,
+        }),
+    );
     this.createdAt = booking.createdAt;
     this.updatedAt = booking.updatedAt;
   }

@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { Place, Prisma, Vehicle } from '@prisma/client';
+import { Extra, Place, Prisma, Vehicle } from '@prisma/client';
 import { CatalogRepository } from './catalog.repository';
 import { CatalogService } from './catalog.service';
 
@@ -42,6 +42,19 @@ describe('CatalogService', () => {
     updatedAt: new Date(),
   };
 
+  const beer: Extra = {
+    id: 'extra-beer',
+    key: 'beer',
+    labelEs: 'Cerveza (six-pack)',
+    labelEn: 'Beer (6-pack)',
+    price: new Prisma.Decimal('12.00'),
+    currency: 'USD',
+    maxQty: 5,
+    active: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -51,6 +64,7 @@ describe('CatalogService', () => {
           useValue: {
             findActivePlaces: jest.fn(),
             findRatesForRoute: jest.fn(),
+            findActiveExtras: jest.fn(),
           },
         },
       ],
@@ -107,6 +121,24 @@ describe('CatalogService', () => {
         currency: 'USD',
         priceNormal: 89.6,
         pricePromo: null,
+      },
+    ]);
+  });
+
+  it('returns active extras with numeric prices', async () => {
+    repository.findActiveExtras.mockResolvedValue([beer]);
+
+    const result = await service.getExtras();
+
+    expect(result).toEqual([
+      {
+        id: 'extra-beer',
+        key: 'beer',
+        labelEs: 'Cerveza (six-pack)',
+        labelEn: 'Beer (6-pack)',
+        price: 12,
+        currency: 'USD',
+        maxQty: 5,
       },
     ]);
   });

@@ -1,6 +1,8 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
 import { ContactPref, PayMethod, TripType } from '@prisma/client';
+import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsDateString,
   IsEmail,
   IsEnum,
@@ -11,7 +13,9 @@ import {
   IsUUID,
   Max,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { BookingExtraDto } from './booking-extra.dto';
 
 export class CreateBookingDto {
   @ApiProperty({ enum: TripType })
@@ -115,4 +119,11 @@ export class CreateBookingDto {
   @ApiProperty({ enum: PayMethod })
   @IsEnum(PayMethod)
   payMethod: PayMethod;
+
+  @ApiPropertyOptional({ type: BookingExtraDto, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BookingExtraDto)
+  extras?: BookingExtraDto[];
 }

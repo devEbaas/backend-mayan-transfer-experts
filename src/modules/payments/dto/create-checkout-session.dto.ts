@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsUUID } from 'class-validator';
 
-export class CreateStripeIntentDto {
+export class CreateCheckoutSessionDto {
   @ApiProperty()
   @IsUUID()
   bookingId: string;

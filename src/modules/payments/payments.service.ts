@@ -6,17 +6,13 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  BookingStatus,
-  PaymentProvider,
-  PaymentStatus,
-  Prisma,
-} from '@prisma/client';
+import { BookingStatus, PaymentProvider, PaymentStatus, Prisma } from '@prisma/client';
 import Stripe from 'stripe';
 import { AppConfig } from '../../config/config.type';
+import { BookingEntity } from '../bookings/entities/booking.entity';
 import { BookingsService } from '../bookings/bookings.service';
-import { CreateStripeIntentDto } from './dto/create-stripe-intent.dto';
-import { PaymentIntentEntity } from './entities/payment-intent.entity';
+import { CreateCheckoutSessionDto } from './dto/create-checkout-session.dto';
+import { CheckoutSessionEntity } from './entities/checkout-session.entity';
 import { PaymentsRepository } from './payments.repository';
 
 const BOOKING_AWAITING_PAYMENT_STATUSES: BookingStatus[] = [
@@ -29,6 +25,7 @@ export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
   private readonly stripe: Stripe;
   private readonly webhookSecret: string;
+  private readonly frontendUrl: string;
 
   constructor(
     configService: ConfigService<AppConfig, true>,
@@ -41,11 +38,12 @@ export class PaymentsService {
     this.webhookSecret = configService.get('stripe.webhookSecret', {
       infer: true,
     });
+    this.frontendUrl = configService.get('app.frontendUrl', { infer: true });
   }
 
-  async createStripeIntent(
-    dto: CreateStripeIntentDto,
-  ): Promise<PaymentIntentEntity> {
+  async createCheckoutSession(
+    dto: CreateCheckoutSessionDto,
+  ): Promise<CheckoutSessionEntity> {
     const booking = await this.bookingsService.findById(dto.bookingId);
 
     if (!BOOKING_AWAITING_PAYMENT_STATUSES.includes(booking.status)) {
@@ -54,38 +52,78 @@ export class PaymentsService {
       );
     }
 
-    const intent = await this.stripe.paymentIntents.create(
+    const lineItems = this.buildLineItems(booking);
+
+    const session = await this.stripe.checkout.sessions.create(
       {
-        amount: Math.round(booking.priceTotal * 100),
-        currency: booking.currency.toLowerCase(),
-        automatic_payment_methods: { enabled: true },
+        mode: 'payment',
+        line_items: lineItems,
+        success_url: `${this.frontendUrl}/?session_id={CHECKOUT_SESSION_ID}&booking=success`,
+        cancel_url: `${this.frontendUrl}/?booking=cancel`,
+        client_reference_id: booking.id,
+        customer_email: booking.email,
         metadata: { bookingId: booking.id, folio: booking.folio },
       },
-      { idempotencyKey: `booking-${booking.id}-stripe-intent` },
+      { idempotencyKey: `booking-${booking.id}-checkout-session` },
     );
 
-    const payment = await this.paymentsRepository.upsertByProviderRef({
+    await this.paymentsRepository.upsertByProviderRef({
       bookingId: booking.id,
       provider: PaymentProvider.stripe,
-      providerRef: intent.id,
+      providerRef: session.id,
       amount: booking.priceTotal,
       currency: booking.currency,
       status: PaymentStatus.pending,
-      raw: intent as unknown as Prisma.InputJsonValue,
+      raw: session as unknown as Prisma.InputJsonValue,
     });
 
     await this.bookingsService.markAwaitingPayment(booking.id);
 
-    if (!intent.client_secret) {
+    if (!session.url) {
       throw new ServiceUnavailableException(
-        'Stripe did not return a client secret for the created PaymentIntent',
+        'Stripe did not return a URL for the created Checkout Session',
       );
     }
 
-    return new PaymentIntentEntity({
-      clientSecret: intent.client_secret,
-      paymentId: payment.id,
+    return new CheckoutSessionEntity({
+      url: session.url,
+      sessionId: session.id,
     });
+  }
+
+  private buildLineItems(
+    booking: BookingEntity,
+  ): Stripe.Checkout.SessionCreateParams.LineItem[] {
+    const extrasTotal = booking.extras.reduce(
+      (sum, line) => sum + line.unitPrice * line.qty,
+      0,
+    );
+    const vehiclePrice = booking.priceTotal - extrasTotal;
+    const currency = booking.currency.toLowerCase();
+
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+      {
+        quantity: 1,
+        price_data: {
+          currency,
+          unit_amount: Math.round(vehiclePrice * 100),
+          product_data: { name: `Transfer ${booking.vehicleName}` },
+        },
+      },
+    ];
+
+    for (const line of booking.extras) {
+      lineItems.push({
+        quantity: line.qty,
+        price_data: {
+          currency: line.currency.toLowerCase(),
+          unit_amount: Math.round(line.unitPrice * 100),
+          product_data: { name: line.labelEn },
+        },
+      });
+    }
+
+    return lineItems;
   }
 
   constructStripeEvent(
@@ -119,13 +157,14 @@ export class PaymentsService {
 
   async handleStripeEvent(event: Stripe.Event): Promise<void> {
     switch (event.type) {
-      case 'payment_intent.succeeded':
+      case 'checkout.session.completed':
         await this.syncPaymentOutcome(
           event.data.object,
           PaymentStatus.succeeded,
         );
         break;
-      case 'payment_intent.payment_failed':
+      case 'checkout.session.expired':
+      case 'checkout.session.async_payment_failed':
         await this.syncPaymentOutcome(event.data.object, PaymentStatus.failed);
         break;
       default:
@@ -134,17 +173,17 @@ export class PaymentsService {
   }
 
   private async syncPaymentOutcome(
-    intent: Stripe.PaymentIntent,
+    session: Stripe.Checkout.Session,
     status: PaymentStatus,
   ): Promise<void> {
     const payment = await this.paymentsRepository.findByProviderRef(
       PaymentProvider.stripe,
-      intent.id,
+      session.id,
     );
 
     if (!payment) {
       this.logger.warn(
-        `Received Stripe event for unknown PaymentIntent ${intent.id}`,
+        `Received Stripe event for unknown Checkout Session ${session.id}`,
       );
       return;
     }
@@ -152,7 +191,7 @@ export class PaymentsService {
     await this.paymentsRepository.updateStatus(
       payment.id,
       status,
-      intent as unknown as Prisma.InputJsonValue,
+      session as unknown as Prisma.InputJsonValue,
     );
 
     if (status === PaymentStatus.succeeded) {

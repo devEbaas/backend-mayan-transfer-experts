@@ -8,8 +8,8 @@ import {
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
-import { CreateStripeIntentDto } from './dto/create-stripe-intent.dto';
-import { PaymentIntentEntity } from './entities/payment-intent.entity';
+import { CreateCheckoutSessionDto } from './dto/create-checkout-session.dto';
+import { CheckoutSessionEntity } from './entities/checkout-session.entity';
 import { PaymentsService } from './payments.service';
 
 @ApiTags('payments')
@@ -17,14 +17,14 @@ import { PaymentsService } from './payments.service';
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
-  @Post('stripe/intent')
+  @Post('stripe/checkout-session')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Create a Stripe PaymentIntent for a booking' })
-  @ApiCreatedResponse({ type: PaymentIntentEntity })
-  createStripeIntent(
-    @Body() dto: CreateStripeIntentDto,
-  ): Promise<PaymentIntentEntity> {
-    return this.paymentsService.createStripeIntent(dto);
+  @ApiOperation({ summary: 'Create a Stripe Checkout Session for a booking' })
+  @ApiCreatedResponse({ type: CheckoutSessionEntity })
+  createCheckoutSession(
+    @Body() dto: CreateCheckoutSessionDto,
+  ): Promise<CheckoutSessionEntity> {
+    return this.paymentsService.createCheckoutSession(dto);
   }
 
   @Post('stripe/webhook')

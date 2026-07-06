@@ -77,6 +77,37 @@ const PLACES = [
   },
 ] as const;
 
+const EXTRAS = [
+  {
+    key: 'beer',
+    labelEs: 'Cerveza (six-pack)',
+    labelEn: 'Beer (6-pack)',
+    price: 12,
+    maxQty: 5,
+  },
+  {
+    key: 'soda',
+    labelEs: 'Refrescos (six-pack)',
+    labelEn: 'Soft drinks (6-pack)',
+    price: 8,
+    maxQty: 5,
+  },
+  {
+    key: 'champagne',
+    labelEs: 'Champagne',
+    labelEn: 'Champagne',
+    price: 35,
+    maxQty: 3,
+  },
+  {
+    key: 'snacks',
+    labelEs: 'Botana',
+    labelEn: 'Snack box',
+    price: 10,
+    maxQty: 5,
+  },
+] as const;
+
 const VEHICLES = [
   {
     name: 'Private Van',
@@ -101,6 +132,16 @@ async function main() {
         where: { key: place.key },
         update: place,
         create: place,
+      }),
+    ),
+  );
+
+  await Promise.all(
+    EXTRAS.map((extra) =>
+      prisma.extra.upsert({
+        where: { key: extra.key },
+        update: extra,
+        create: extra,
       }),
     ),
   );

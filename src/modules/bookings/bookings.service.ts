@@ -42,6 +42,7 @@ export class BookingsService {
       departureTime: dto.departureTime,
       comments: dto.comments,
       payMethod: dto.payMethod,
+      extras: dto.extras,
     });
 
     return new BookingEntity(booking);

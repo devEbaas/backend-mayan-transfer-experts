@@ -8,12 +8,12 @@ import { BookingsService } from '../bookings/bookings.service';
 import { PaymentsRepository } from './payments.repository';
 import { PaymentsService } from './payments.service';
 
-const paymentIntentsCreate = jest.fn();
+const checkoutSessionsCreate = jest.fn();
 const webhooksConstructEvent = jest.fn();
 
 jest.mock('stripe', () => {
   return jest.fn().mockImplementation(() => ({
-    paymentIntents: { create: paymentIntentsCreate },
+    checkout: { sessions: { create: checkoutSessionsCreate } },
     webhooks: { constructEvent: webhooksConstructEvent },
   }));
 });
@@ -32,9 +32,21 @@ describe('PaymentsService', () => {
   const booking = {
     id: 'booking-1',
     folio: 'CTH-HW2NWQ',
-    priceTotal: 89.6,
+    email: 'jane@example.com',
+    priceTotal: 101.6,
     currency: 'USD',
     status: BookingStatus.nueva,
+    vehicleName: 'Private Van',
+    extras: [
+      {
+        extraId: 'extra-beer',
+        labelEs: 'Cerveza (six-pack)',
+        labelEn: 'Beer (6-pack)',
+        qty: 1,
+        unitPrice: 12,
+        currency: 'USD',
+      },
+    ],
   } as BookingEntity;
 
   beforeEach(async () => {
@@ -46,8 +58,12 @@ describe('PaymentsService', () => {
         {
           provide: ConfigService,
           useValue: {
-            get: (key: string) =>
-              key === 'stripe.secretKey' ? 'sk_test_123' : 'whsec_test',
+            get: (key: string) => {
+              if (key === 'stripe.secretKey') return 'sk_test_123';
+              if (key === 'stripe.webhookSecret') return 'whsec_test';
+              if (key === 'app.frontendUrl') return 'http://localhost:5173';
+              return undefined;
+            },
           },
         },
         {
@@ -69,35 +85,57 @@ describe('PaymentsService', () => {
     service = module.get(PaymentsService);
   });
 
-  describe('createStripeIntent', () => {
-    it('creates a PaymentIntent, persists the payment and marks the booking as awaiting payment', async () => {
+  describe('createCheckoutSession', () => {
+    it('creates a Checkout Session with itemized line items, persists the payment and marks the booking as awaiting payment', async () => {
       findBookingById.mockResolvedValue(booking);
-      paymentIntentsCreate.mockResolvedValue({
-        id: 'pi_123',
-        client_secret: 'pi_123_secret',
+      checkoutSessionsCreate.mockResolvedValue({
+        id: 'cs_123',
+        url: 'https://checkout.stripe.com/c/pay/cs_123',
       });
       upsertByProviderRef.mockResolvedValue({ id: 'payment-1' });
 
-      const result = await service.createStripeIntent({
+      const result = await service.createCheckoutSession({
         bookingId: booking.id,
       });
 
-      expect(paymentIntentsCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ amount: 8960, currency: 'usd' }),
-        { idempotencyKey: `booking-${booking.id}-stripe-intent` },
+      expect(checkoutSessionsCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mode: 'payment',
+          line_items: [
+            expect.objectContaining({
+              quantity: 1,
+              price_data: expect.objectContaining({
+                currency: 'usd',
+                unit_amount: 8960,
+                product_data: { name: 'Transfer Private Van' },
+              }),
+            }),
+            expect.objectContaining({
+              quantity: 1,
+              price_data: expect.objectContaining({
+                currency: 'usd',
+                unit_amount: 1200,
+                product_data: { name: 'Beer (6-pack)' },
+              }),
+            }),
+          ],
+          success_url: expect.stringContaining('booking=success'),
+          cancel_url: expect.stringContaining('booking=cancel'),
+        }),
+        { idempotencyKey: `booking-${booking.id}-checkout-session` },
       );
       expect(upsertByProviderRef).toHaveBeenCalledWith(
         expect.objectContaining({
           bookingId: booking.id,
           provider: PaymentProvider.stripe,
-          providerRef: 'pi_123',
+          providerRef: 'cs_123',
           status: PaymentStatus.pending,
         }),
       );
       expect(markAwaitingPayment).toHaveBeenCalledWith(booking.id);
       expect(result).toEqual({
-        clientSecret: 'pi_123_secret',
-        paymentId: 'payment-1',
+        url: 'https://checkout.stripe.com/c/pay/cs_123',
+        sessionId: 'cs_123',
       });
     });
 
@@ -108,9 +146,9 @@ describe('PaymentsService', () => {
       });
 
       await expect(
-        service.createStripeIntent({ bookingId: booking.id }),
+        service.createCheckoutSession({ bookingId: booking.id }),
       ).rejects.toThrow(ConflictException);
-      expect(paymentIntentsCreate).not.toHaveBeenCalled();
+      expect(checkoutSessionsCreate).not.toHaveBeenCalled();
     });
   });
 
@@ -145,17 +183,17 @@ describe('PaymentsService', () => {
   });
 
   describe('handleStripeEvent', () => {
-    const intent = { id: 'pi_123' } as Stripe.PaymentIntent;
+    const session = { id: 'cs_123' } as Stripe.Checkout.Session;
 
-    it('confirms the booking when a payment succeeds', async () => {
+    it('confirms the booking when a checkout session completes', async () => {
       findByProviderRef.mockResolvedValue({
         id: 'payment-1',
         bookingId: booking.id,
       });
 
       await service.handleStripeEvent({
-        type: 'payment_intent.succeeded',
-        data: { object: intent },
+        type: 'checkout.session.completed',
+        data: { object: session },
       } as Stripe.Event);
 
       expect(updateStatus).toHaveBeenCalledWith(
@@ -167,27 +205,27 @@ describe('PaymentsService', () => {
       expect(markPaymentFailed).not.toHaveBeenCalled();
     });
 
-    it('marks the booking payment as failed on a failed charge', async () => {
+    it('marks the booking payment as failed when a checkout session expires', async () => {
       findByProviderRef.mockResolvedValue({
         id: 'payment-1',
         bookingId: booking.id,
       });
 
       await service.handleStripeEvent({
-        type: 'payment_intent.payment_failed',
-        data: { object: intent },
+        type: 'checkout.session.expired',
+        data: { object: session },
       } as Stripe.Event);
 
       expect(markPaymentFailed).toHaveBeenCalledWith(booking.id);
       expect(markPaymentSucceeded).not.toHaveBeenCalled();
     });
 
-    it('ignores events for an unknown PaymentIntent', async () => {
+    it('ignores events for an unknown Checkout Session', async () => {
       findByProviderRef.mockResolvedValue(null);
 
       await service.handleStripeEvent({
-        type: 'payment_intent.succeeded',
-        data: { object: intent },
+        type: 'checkout.session.completed',
+        data: { object: session },
       } as Stripe.Event);
 
       expect(updateStatus).not.toHaveBeenCalled();
@@ -197,7 +235,7 @@ describe('PaymentsService', () => {
     it('ignores unrelated event types', async () => {
       await service.handleStripeEvent({
         type: 'charge.refunded',
-        data: { object: intent },
+        data: { object: session },
       } as unknown as Stripe.Event);
 
       expect(findByProviderRef).not.toHaveBeenCalled();

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Place, Prisma } from '@prisma/client';
+import { Extra, Place, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma/prisma.service';
 
 @Injectable()
@@ -10,6 +10,13 @@ export class CatalogRepository {
     return this.prisma.place.findMany({
       where: { active: true },
       orderBy: [{ isAirport: 'desc' }, { labelEs: 'asc' }],
+    });
+  }
+
+  findActiveExtras(): Promise<Extra[]> {
+    return this.prisma.extra.findMany({
+      where: { active: true },
+      orderBy: { labelEs: 'asc' },
     });
   }
 

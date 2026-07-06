@@ -4,6 +4,7 @@ export interface AppConfig {
     port: number;
     apiPrefix: string;
     corsOrigin: string;
+    frontendUrl: string;
   };
   database: {
     url: string;
