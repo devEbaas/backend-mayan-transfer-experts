@@ -183,9 +183,12 @@ describe('PaymentsService', () => {
   });
 
   describe('handleStripeEvent', () => {
-    const session = { id: 'cs_123' } as Stripe.Checkout.Session;
+    const session = {
+      id: 'cs_123',
+      payment_status: 'paid',
+    } as Stripe.Checkout.Session;
 
-    it('confirms the booking when a checkout session completes', async () => {
+    it('confirms the booking when a checkout session completes with payment_status paid', async () => {
       findByProviderRef.mockResolvedValue({
         id: 'payment-1',
         bookingId: booking.id,
@@ -203,6 +206,48 @@ describe('PaymentsService', () => {
       );
       expect(markPaymentSucceeded).toHaveBeenCalledWith(booking.id);
       expect(markPaymentFailed).not.toHaveBeenCalled();
+    });
+
+    it('does not confirm the booking when a checkout session completes with an unpaid async payment method', async () => {
+      await service.handleStripeEvent({
+        type: 'checkout.session.completed',
+        data: {
+          object: { id: 'cs_123', payment_status: 'unpaid' },
+        },
+      } as Stripe.Event);
+
+      expect(findByProviderRef).not.toHaveBeenCalled();
+      expect(markPaymentSucceeded).not.toHaveBeenCalled();
+    });
+
+    it('confirms the booking when a delayed async payment method succeeds', async () => {
+      findByProviderRef.mockResolvedValue({
+        id: 'payment-1',
+        bookingId: booking.id,
+      });
+
+      await service.handleStripeEvent({
+        type: 'checkout.session.async_payment_succeeded',
+        data: { object: session },
+      } as Stripe.Event);
+
+      expect(markPaymentSucceeded).toHaveBeenCalledWith(booking.id);
+      expect(markPaymentFailed).not.toHaveBeenCalled();
+    });
+
+    it('marks the booking payment as failed when a delayed async payment method fails', async () => {
+      findByProviderRef.mockResolvedValue({
+        id: 'payment-1',
+        bookingId: booking.id,
+      });
+
+      await service.handleStripeEvent({
+        type: 'checkout.session.async_payment_failed',
+        data: { object: session },
+      } as Stripe.Event);
+
+      expect(markPaymentFailed).toHaveBeenCalledWith(booking.id);
+      expect(markPaymentSucceeded).not.toHaveBeenCalled();
     });
 
     it('marks the booking payment as failed when a checkout session expires', async () => {

@@ -157,7 +157,18 @@ export class PaymentsService {
 
   async handleStripeEvent(event: Stripe.Event): Promise<void> {
     switch (event.type) {
-      case 'checkout.session.completed':
+      case 'checkout.session.completed': {
+        const session = event.data.object;
+        if (session.payment_status === 'paid') {
+          await this.syncPaymentOutcome(session, PaymentStatus.succeeded);
+        } else {
+          this.logger.debug(
+            `Checkout Session ${session.id} completed with payment_status=${session.payment_status}; awaiting async payment confirmation`,
+          );
+        }
+        break;
+      }
+      case 'checkout.session.async_payment_succeeded':
         await this.syncPaymentOutcome(
           event.data.object,
           PaymentStatus.succeeded,
