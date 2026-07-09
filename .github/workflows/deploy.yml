@@ -58,6 +58,7 @@ jobs:
           API_PREFIX: ${{ vars.API_PREFIX }}
           CORS_ORIGIN: ${{ vars.CORS_ORIGIN }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           JWT_EXPIRES_IN: ${{ vars.JWT_EXPIRES_IN }}
           JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
@@ -73,6 +74,7 @@ jobs:
           CORS_ORIGIN=$CORS_ORIGIN
 
           DATABASE_URL=$DATABASE_URL
+          DIRECT_URL=$DIRECT_URL
 
           JWT_SECRET=$JWT_SECRET
           JWT_EXPIRES_IN=$JWT_EXPIRES_IN
