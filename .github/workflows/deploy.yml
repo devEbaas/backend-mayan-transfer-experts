@@ -57,6 +57,7 @@ jobs:
           PORT: ${{ vars.PORT }}
           API_PREFIX: ${{ vars.API_PREFIX }}
           CORS_ORIGIN: ${{ vars.CORS_ORIGIN }}
+          FRONTEND_URL: ${{ vars.FRONTEND_URL }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
@@ -72,6 +73,7 @@ jobs:
           PORT=$PORT
           API_PREFIX=$API_PREFIX
           CORS_ORIGIN=$CORS_ORIGIN
+          FRONTEND_URL=$FRONTEND_URL
 
           DATABASE_URL=$DATABASE_URL
           DIRECT_URL=$DIRECT_URL
