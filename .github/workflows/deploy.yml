@@ -103,3 +103,4 @@ jobs:
             pm2 restart mayan-transfer-backend || pm2 start dist/main.js --name mayan-transfer-backend
             pm2 save
           EOF
+          
